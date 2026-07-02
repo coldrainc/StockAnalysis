@@ -1,0 +1,3 @@
+code,name,shares,cost_price,market_value,notes
+000001,示例股票A,100,10.00,1000,示例持仓，请复制为 holdings/current_positions.csv 后填写真实数据
+000002,示例股票B,200,5.00,1000,示例持仓，请勿提交真实持仓数据

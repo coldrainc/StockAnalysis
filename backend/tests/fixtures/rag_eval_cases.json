@@ -1,0 +1,12 @@
+[
+  {
+    "query": "锂电池 宁德时代 动力电池",
+    "expected_sources": ["a_share_technology/companies/300750_宁德时代.md"],
+    "must_contain": ["宁德时代", "锂电池"]
+  },
+  {
+    "query": "半导体 中芯国际 晶圆",
+    "expected_sources": ["a_share_technology/companies/688981_中芯国际.md"],
+    "must_contain": ["中芯国际", "半导体"]
+  }
+]

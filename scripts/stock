@@ -1,0 +1,153 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  cat <<'EOF'
+Stock Agent wrapper
+
+Usage:
+  ./stock                  Start terminal chat
+  ./stock desktop|gui      Start Electron desktop GUI
+  ./stock api              Start local API server
+  ./stock index-market     Build market-specific RAG/vector index
+  ./stock build-a-share-tech
+  ./stock refresh-a-share-tech
+  ./stock daily-picks       Generate daily quant picks and portfolio report
+  ./stock eval-rag
+
+Use ".venv/bin/stock-agent --help" for the full Typer command list.
+EOF
+  exit 0
+fi
+
+if [[ "${1:-}" != "--help" && "${1:-}" != "-h" ]]; then
+  print -P "%F{cyan}正在加载股票分析 Agent 命令入口...%f"
+fi
+
+if [[ -z "${GATEWAY_API_KEY:-}" && -f "$HOME/.zshrc" ]]; then
+  key_line="$(grep -E '^[[:space:]]*export[[:space:]]+GATEWAY_API_KEY=' "$HOME/.zshrc" | tail -n 1 || true)"
+  if [[ -n "$key_line" ]]; then
+    eval "$key_line"
+  fi
+fi
+
+if [[ ! -x ".venv/bin/stock-agent" ]]; then
+  print -P "%F{yellow}未找到 .venv/bin/stock-agent，请先运行：make install%f" >&2
+  exit 127
+fi
+
+if [[ "${1:-}" == "desktop" || "${1:-}" == "gui" ]]; then
+  shift
+  STOCK_AGENT_API_HOST="${STOCK_AGENT_API_HOST:-127.0.0.1}"
+  STOCK_AGENT_API_PORT="${STOCK_AGENT_API_PORT:-18220}"
+  STOCK_AGENT_API_URL="${STOCK_AGENT_API_URL:-http://${STOCK_AGENT_API_HOST}:${STOCK_AGENT_API_PORT}}"
+  export STOCK_AGENT_API_URL
+  if [[ ! -x "apps/desktop/node_modules/.bin/electron" ]]; then
+    print -P "%F{yellow}未找到 Electron 依赖，正在安装 apps/desktop 依赖...%f"
+    npm --prefix apps/desktop install
+  fi
+  if [[ ! -x "apps/desktop/node_modules/.bin/vite" ]]; then
+    print -P "%F{yellow}未找到 React/Vite 依赖，正在安装 apps/desktop 依赖...%f"
+    npm --prefix apps/desktop install
+  fi
+
+  health_payload="$(curl -fsS "${STOCK_AGENT_API_URL}/health" 2>/dev/null || true)"
+  if [[ -n "$health_payload" && "$health_payload" != *'"service":"stock-agent-api"'* ]]; then
+    print -P "%F{red}${STOCK_AGENT_API_URL} 已被非 Stock Agent API 服务占用。%f" >&2
+    print -P "%F{yellow}请先停止旧服务后再运行 ./stock desktop。当前 /health: $health_payload%f" >&2
+    exit 1
+  fi
+
+  if [[ -z "$health_payload" ]]; then
+    mkdir -p .stock_agent
+    print -P "%F{cyan}正在启动 Stock Agent API: ${STOCK_AGENT_API_URL}%f"
+    .venv/bin/stock-agent api --host "$STOCK_AGENT_API_HOST" --port "$STOCK_AGENT_API_PORT" > .stock_agent/api.log 2>&1 &
+    api_pid=$!
+    print "$api_pid" > .stock_agent/api.pid
+    for _ in {1..40}; do
+      if curl -fsS "${STOCK_AGENT_API_URL}/health" >/dev/null 2>&1; then
+        break
+      fi
+      sleep 0.5
+    done
+    if ! curl -fsS "${STOCK_AGENT_API_URL}/health" >/dev/null 2>&1; then
+      print -P "%F{red}Stock Agent API 启动失败，请查看 .stock_agent/api.log%f" >&2
+      exit 1
+    fi
+    health_payload="$(curl -fsS "${STOCK_AGENT_API_URL}/health" 2>/dev/null || true)"
+    if [[ "$health_payload" != *'"service":"stock-agent-api"'* ]]; then
+      print -P "%F{red}Stock Agent API 健康检查未返回 stock-agent-api 标识，请查看 .stock_agent/api.log%f" >&2
+      exit 1
+    fi
+  fi
+
+  print -P "%F{cyan}正在构建 Stock Agent 桌面 UI...%f"
+  npm --prefix apps/desktop run build
+
+  print -P "%F{green}正在打开 Stock Agent 桌面端...%f"
+  exec npm --prefix apps/desktop run desktop -- "$@"
+fi
+
+if [[ "${1:-}" == "index" ]]; then
+  shift
+  exec .venv/bin/stock-agent index "$@"
+fi
+
+if [[ "${1:-}" == "index-market" ]]; then
+  shift
+  exec .venv/bin/stock-agent index-market "$@"
+fi
+
+if [[ "${1:-}" == "collect-universe" ]]; then
+  shift
+  exec .venv/bin/stock-agent collect-universe "$@"
+fi
+
+if [[ "${1:-}" == "refresh-kb" ]]; then
+  shift
+  exec .venv/bin/stock-agent refresh-kb "$@"
+fi
+
+if [[ "${1:-}" == "add-knowledge" ]]; then
+  shift
+  exec .venv/bin/stock-agent add-knowledge "$@"
+fi
+
+if [[ "${1:-}" == "build-a-share-tech" ]]; then
+  shift
+  exec .venv/bin/stock-agent build-a-share-tech "$@"
+fi
+
+if [[ "${1:-}" == "refresh-a-share-tech" ]]; then
+  shift
+  exec .venv/bin/stock-agent refresh-a-share-tech "$@"
+fi
+
+if [[ "${1:-}" == "daily-picks" ]]; then
+  shift
+  exec .venv/bin/stock-agent daily-picks "$@"
+fi
+
+if [[ "${1:-}" == "embedding-service" ]]; then
+  shift
+  exec .venv/bin/stock-agent embedding-service "$@"
+fi
+
+if [[ "${1:-}" == "doctor" ]]; then
+  shift
+  exec .venv/bin/stock-agent doctor "$@"
+fi
+
+if [[ "${1:-}" == "eval-rag" ]]; then
+  shift
+  exec .venv/bin/stock-agent eval-rag "$@"
+fi
+
+if [[ "${1:-}" == "api" ]]; then
+  shift
+  exec .venv/bin/stock-agent api "$@"
+fi
+
+exec .venv/bin/stock-agent run --config backend/examples/stock_config.json "$@"

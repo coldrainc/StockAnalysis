@@ -1,0 +1,33 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Electron
+node_modules/
+apps/desktop/node_modules/
+dist/
+apps/desktop/dist/
+
+# Stock Agent local runtime state
+.stock_agent/
+*.log
+*.pid
+
+# Local secrets and user files
+.env
+.env.*
+!.env.example
+holdings/current_positions.csv
+holdings/*.local.csv
+portfolio*.csv
+portfolio*.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
